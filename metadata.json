@@ -1,0 +1,10 @@
+{
+  "name": "Absensi Online QR Code",
+  "description": "Sistem Absensi Online berbasis QR Code dengan mode Check-in/Check-out, integrasi Google Apps Script (Google Sheets), dan generator QR Kartu Anggota.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
