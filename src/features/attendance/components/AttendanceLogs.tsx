@@ -42,12 +42,76 @@ export const AttendanceLogs: React.FC<AttendanceLogsProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleExport = (exportMode: 'ALL' | 'MASUK' | 'KELUAR') => {
-    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    const now = new Date();
-    const suffix = exportMode === 'ALL' ? 'Semua' : exportMode === 'MASUK' ? 'Masuk' : 'Keluar';
-    const filename = `Data_Absensi_${suffix}_${months[now.getMonth()]}_${now.getFullYear()}.xlsx`;
-    const toExport = exportMode === 'ALL' ? records : records.filter(r => r.mode === exportMode);
+  const isStaffOrGuruRecord = (rec: AttendanceRecord): boolean => {
+    const type = (rec.userType || '').toLowerCase();
+    if (type.includes('staff') || type.includes('guru')) return true;
+    if (type.includes('siswa')) return false;
+    if (rec.userId.toUpperCase().startsWith('SG-')) return true;
+    return false;
+  };
+
+  const isSiswaRecord = (rec: AttendanceRecord): boolean => {
+    const type = (rec.userType || '').toLowerCase();
+    if (type.includes('siswa')) return true;
+    if (type.includes('staff') || type.includes('guru')) return false;
+    if (rec.userId.toUpperCase().startsWith('S-')) return true;
+    return !isStaffOrGuruRecord(rec);
+  };
+
+  type ExportMode = 'ALL' | 'MASUK_STAFF' | 'KELUAR_STAFF' | 'MASUK_SISWA' | 'KELUAR_SISWA' | 'MASUK' | 'KELUAR';
+
+  const handleExport = (exportMode: ExportMode) => {
+    const monthsName = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    
+    let yearStr = new Date().getFullYear().toString();
+    let monthIndex = new Date().getMonth();
+
+    if (dateFilter) {
+      const parts = dateFilter.split('-');
+      if (parts.length === 2) {
+        yearStr = parts[0];
+        monthIndex = parseInt(parts[1], 10) - 1;
+      }
+    }
+
+    let suffix = 'Semua';
+    // Filter base records by the selected month
+    let baseRecords = dateFilter ? records.filter(r => r.date.startsWith(dateFilter)) : records;
+    let toExport = baseRecords;
+
+    switch (exportMode) {
+      case 'MASUK_STAFF':
+        suffix = 'Masuk_Guru_Staff';
+        toExport = baseRecords.filter(r => r.mode === 'MASUK' && isStaffOrGuruRecord(r));
+        break;
+      case 'KELUAR_STAFF':
+        suffix = 'Keluar_Guru_Staff';
+        toExport = baseRecords.filter(r => r.mode === 'KELUAR' && isStaffOrGuruRecord(r));
+        break;
+      case 'MASUK_SISWA':
+        suffix = 'Masuk_Siswa';
+        toExport = baseRecords.filter(r => r.mode === 'MASUK' && isSiswaRecord(r));
+        break;
+      case 'KELUAR_SISWA':
+        suffix = 'Keluar_Siswa';
+        toExport = baseRecords.filter(r => r.mode === 'KELUAR' && isSiswaRecord(r));
+        break;
+      case 'MASUK':
+        suffix = 'Masuk_Semua';
+        toExport = baseRecords.filter(r => r.mode === 'MASUK');
+        break;
+      case 'KELUAR':
+        suffix = 'Keluar_Semua';
+        toExport = baseRecords.filter(r => r.mode === 'KELUAR');
+        break;
+      case 'ALL':
+      default:
+        suffix = 'Semua';
+        toExport = baseRecords;
+        break;
+    }
+
+    const filename = `Data_Absensi_${suffix}_${monthsName[monthIndex]}_${yearStr}.xlsx`;
     exportRecordsToExcel(toExport, filename);
     setExportMenuOpen(false);
   };
@@ -145,38 +209,69 @@ export const AttendanceLogs: React.FC<AttendanceLogsProps> = ({
 
             {/* Dropdown menu */}
             {exportMenuOpen && (
-              <div className="absolute right-0 mt-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in">
-                <div className="px-3 py-2 border-b border-slate-100">
+              <div className="absolute right-0 mt-2 w-60 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in">
+                <div className="px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/50">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pilih Mode Export</p>
                 </div>
+
                 <button
                   onClick={() => handleExport('ALL')}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-colors text-left"
                 >
-                  <List className="w-3.5 h-3.5 text-slate-500" />
+                  <List className="w-4 h-4 text-slate-500 shrink-0" />
                   <div>
-                    <div>Semua Absensi</div>
-                    <div className="text-[10px] text-slate-400 font-normal">Export MASUK &amp; KELUAR</div>
+                    <div className="font-bold">Semua Absensi</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Export semua data absensi</div>
                   </div>
                 </button>
+
+                {/* Guru / Staff */}
+                <div className="px-3.5 py-1.5 bg-slate-50/80 border-y border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Guru &amp; Staff</p>
+                </div>
                 <button
-                  onClick={() => handleExport('MASUK')}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-emerald-50 text-xs font-semibold text-slate-700 transition-colors text-left border-t border-slate-50"
+                  onClick={() => handleExport('MASUK_STAFF')}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-emerald-50 text-xs font-semibold text-slate-700 transition-colors text-left"
                 >
-                  <LogIn className="w-3.5 h-3.5 text-emerald-500" />
+                  <LogIn className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                   <div>
-                    <div>Hanya MASUK</div>
-                    <div className="text-[10px] text-slate-400 font-normal">Export data check-in saja</div>
+                    <div className="font-bold text-slate-800">1. Masuk Guru / Staff</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Export data check-in Guru &amp; Staff</div>
                   </div>
                 </button>
                 <button
-                  onClick={() => handleExport('KELUAR')}
+                  onClick={() => handleExport('KELUAR_STAFF')}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-rose-50 text-xs font-semibold text-slate-700 transition-colors text-left border-t border-slate-50"
                 >
-                  <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                  <LogOut className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                   <div>
-                    <div>Hanya KELUAR</div>
-                    <div className="text-[10px] text-slate-400 font-normal">Export data check-out saja</div>
+                    <div className="font-bold text-slate-800">2. Keluar Guru / Staff</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Export data check-out Guru &amp; Staff</div>
+                  </div>
+                </button>
+
+                {/* Siswa */}
+                <div className="px-3.5 py-1.5 bg-slate-50/80 border-y border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Siswa</p>
+                </div>
+                <button
+                  onClick={() => handleExport('MASUK_SISWA')}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-emerald-50 text-xs font-semibold text-slate-700 transition-colors text-left"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <div>
+                    <div className="font-bold text-slate-800">3. Masuk Siswa</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Export data check-in Siswa</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleExport('KELUAR_SISWA')}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-rose-50 text-xs font-semibold text-slate-700 transition-colors text-left border-t border-slate-50"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <div>
+                    <div className="font-bold text-slate-800">4. Keluar Siswa</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Export data check-out Siswa</div>
                   </div>
                 </button>
               </div>
